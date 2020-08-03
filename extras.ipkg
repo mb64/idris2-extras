@@ -1,0 +1,8 @@
+package extras
+
+depends = contrib
+
+modules =
+    Extra.Control.MonadTrans,
+    Extra.Language.Derive,
+    Extra.Prelude
