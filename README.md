@@ -14,7 +14,7 @@ This library fills some of those gaps.
 ## Contents
 
  * `Extras.Prelude` has some basic things like `zip` for streams
- * `Extras.Control.MonadTrans` has `ReaderT` and `ExceptT`
+ * `Extras.Control.MonadTrans` has `ReaderT`, `ExceptT`, and `ContT`
  * `Extras.Data.DepMap` has a version of `Data.SortedMap` where the values can
    depend on the keys.
  * `Extras.Language.Derive` has utilities to derive `Eq` and `DecEq` interfaces.

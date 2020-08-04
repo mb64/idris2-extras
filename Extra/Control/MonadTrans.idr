@@ -3,6 +3,7 @@
 |||  - StateT (re-exported from base)
 |||  - MonadError interface and ExceptT transformer
 |||  - MonadReader interface and ReaderT transformer
+|||  - MonadCont interface and ContT transformer
 |||  - MonadIO interface: like Prelude.HasIO but not linear
 |||
 ||| TODO: WriterT and MonadWriter, RWST transformer
@@ -63,6 +64,19 @@ interface Monad m => MonadReader r m | m where
 --   local f g = g . f
 --   reader = id
 
+public export
+interface Monad m => MonadCont m where
+  callCC : ((a -> m b) -> m a) -> m a
+
+export
+implementation MonadCont m => MonadCont (StateT s m) where
+  callCC f = ST $ \s =>
+             callCC $ \c =>
+             runStateT (f $ \a => ST $ \s' => c (a, s')) s
+-- Which state to use?  Both s or s' make sense     ^^
+-- in different situtations.  Choosing s' for now, since
+-- that's what Haskell does.
+
 
 -- ExceptT
 
@@ -120,6 +134,11 @@ implementation MonadReader r m => MonadReader r (ExceptT e m) where
   local f (MkExceptT x) = MkExceptT $ local f x
   reader = lift . reader
 
+export
+implementation MonadCont m => MonadCont (ExceptT e m) where
+  callCC f = MkExceptT $
+    callCC $ \cont => runExceptT $ f $ MkExceptT . cont . Right
+
 
 -- ReaderT
 
@@ -164,3 +183,55 @@ implementation MonadError e m => MonadError e (ReaderT r m) where
 export
 implementation MonadIO m => MonadIO (ReaderT r m) where
   liftIO = MkReaderT . const . liftIO
+
+export
+implementation MonadCont m => MonadCont (ReaderT r m) where
+  callCC f = MkReaderT $ \r =>
+    callCC $ \cont => flip runReaderT r $ f $ lift . cont
+
+
+-- ContT
+
+public export
+data ContT : (r : k) -> (m : k -> Type) -> Type -> Type where
+  MkContT : ((a -> m r) -> m r) -> ContT r m a
+
+public export
+runContT : ContT r m a -> (a -> m r) -> m r
+runContT (MkContT c) = c
+
+export
+implementation Functor (ContT r m) where
+  map f (MkContT c) = MkContT $ c . (. f)
+
+export
+implementation Applicative (ContT r m) where
+  pure x = MkContT ($ x)
+  MkContT f <*> MkContT x = MkContT $ \cont => f $ x . (cont .)
+
+export
+implementation Monad (ContT r m) where
+  MkContT x >>= f = MkContT $ \cont => x $ (\cx => runContT (f cx) cont)
+
+export
+implementation MonadTrans (ContT r) where
+  lift x = MkContT (x >>=)
+
+export
+implementation MonadCont (ContT r m) where
+  callCC f = MkContT $ \cont => runContT (f $ \fc => MkContT $ \_ => cont fc) cont
+
+export
+implementation MonadReader r' m => MonadReader r' (ContT r m) where
+  ask = lift ask
+  local f (MkContT x) = MkContT $ local f . x
+  reader = lift . reader
+
+export
+implementation MonadState s m => MonadState s (ContT r m) where
+  get = lift get
+  put = lift . put
+
+export
+implementation MonadIO m => MonadIO (ContT r m) where
+  liftIO = lift . liftIO

@@ -5,4 +5,5 @@ depends = contrib
 modules =
     Extra.Control.MonadTrans,
     Extra.Language.Derive,
+    Extra.Data.DepMap,
     Extra.Prelude
