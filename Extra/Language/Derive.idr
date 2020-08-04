@@ -31,16 +31,15 @@ fullyApply pos f argName i _ = f
 ||| Derive `Eq` for a type.
 |||
 ||| Use:
-||| namespace MyTypeDerived
-|||   mutual
-|||     derivedEq : Eq a => MyType a -> MyType a -> Bool
-|||     %runElab deriveEq `{{ MyType }}
+||| mutual
+|||   myEq : Eq a => MyType a -> MyType a -> Bool
+|||   %runElab deriveEq `{{ myEq }} `{{ MyType }}
 |||
-|||     Eq a => Eq (MyType a) where
-|||       (==) = derivedEq
+|||   Eq a => Eq (MyType a) where
+|||     (==) = myEq
 export
-deriveEq : Name -> Elab ()
-deriveEq typeName = do
+deriveEq : Name -> Name -> Elab ()
+deriveEq funcName typeName = do
   let pos = MkFC ("deriveEq for " ++ show typeName) (0,0) (0,0)
   [(n, _)] <- getType typeName
       | _ => fail "Bad name"
@@ -66,33 +65,32 @@ deriveEq typeName = do
   let allClauses = clauses ++ [finalClause]
       caseExpr = ICase pos `(MkPair x y) (Implicit pos True) allClauses
       result = `(\x, y => ~(caseExpr))
-  declare `[ derivedEq = ~(result) ]
+      clauses = [PatClause pos (IVar pos funcName) result]
+  declare [IDef pos funcName clauses]
 
 -- Wow! what an opportunity to derive equality
-namespace NameDerived
-  mutual
-    derivedEq : Name -> Name -> Bool
-    %runElab deriveEq `{{ Name }}
+mutual
+  eqName : Name -> Name -> Bool
+  %runElab deriveEq `{{ eqName }} `{{ Name }}
 
-    export
-    Eq Name where
-      (==) = derivedEq
+  export
+  Eq Name where
+    (==) = eqName
 
 ||| Derive `DecEq` for a type.
 |||
 ||| Use:
-||| namespace MyTypeDerived
-|||   mutual
-|||     derivedDecEq : DecEq a => (x : MyType a) -> (y : MyType a) -> Dec (x = y)
-|||     %runElab deriveDecEq `{{ MyType }}
+||| mutual
+|||   myDecEq : DecEq a => (x : MyType a) -> (y : MyType a) -> Dec (x = y)
+|||   %runElab deriveDecEq `{{ myDecEq }} `{{ MyType }}
 |||
-|||     DecEq a => DecEq (MyType a) where
-|||       decEq = MyTypeDerived.derivedDecEq
+|||   DecEq a => DecEq (MyType a) where
+|||     decEq = myDecEq
 export
-deriveDecEq : Name -> Elab ()
-deriveDecEq typeName = do
+deriveDecEq : Name -> Name -> Elab ()
+deriveDecEq funcName typeName = do
   let pos = MkFC ("deriveDecEq for " ++ show typeName) (0,0) (0,0)
-      funcName = UN "derivedDecEq"
+      thisFunc = IVar pos funcName
   [(n, _)] <- getType typeName
       | _ => fail "Bad name"
   constrs <- getCons n
@@ -105,7 +103,7 @@ deriveDecEq typeName = do
               thisX = IVar pos $ UN $ "x__" ++ show i
               thisY = IVar pos $ UN $ "y__" ++ show i
               decEqXY = `(decEq ~(thisX) ~(thisY))
-              lhs = foldl (IApp pos) `(derivedDecEq ~(px) ~(py)) withBinds
+              lhs = foldl (IApp pos) `(~(thisFunc) ~(px) ~(py)) withBinds
           in WithClause pos lhs decEqXY [
             -- No clause
             PatClause pos `(~(lhs) (No ~(IBindVar pos "bad")))
@@ -121,7 +119,7 @@ deriveDecEq typeName = do
             ]
         IPi _ _ _ _ _ retTy =>
           makeClause i mkIndTy lhsSoFar withBinds retTy -- Ignore implicit arguments
-        _ => let startingLhs = `(derivedDecEq ~(lhsSoFar) ~(lhsSoFar))
+        _ => let startingLhs = `(~(thisFunc) ~(lhsSoFar) ~(lhsSoFar))
                  lhs = foldl (IApp pos) startingLhs withBinds
              in PatClause pos lhs `(Yes Refl)
       makeSameClause : Name -> Elab Clause
@@ -148,7 +146,7 @@ deriveDecEq typeName = do
           | _ => fail $ "ambiguous name for constr " ++ show c2
         let pat1 = fullyBind pos (IVar pos n1) "x__" 1 ty1
             pat2 = fullyBind pos (IVar pos n2) "y__" 1 ty2
-            lhs = `(derivedDecEq ~(pat1) ~(pat2))
+            lhs = `(~(thisFunc) ~(pat1) ~(pat2))
         pure $ PatClause pos lhs `(No absurd)
   clauses <- sequence $ do
     a <- constrs

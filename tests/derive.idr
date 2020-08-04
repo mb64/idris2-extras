@@ -14,27 +14,25 @@ Uninhabited (Branch l x y = Leaf) where
 Uninhabited (Leaf = Branch l x r) where
   uninhabited Refl impossible
 
--- Namespace it so it doesn't conflict with other `derivedDecEq`s
-namespace TreeDerive
-  mutual
-    derivedEq : Eq a
-      => Tree a
-      -> Tree a
-      -> Bool
-    %runElab deriveEq `{{ Tree }}
+mutual
+  eqTree : Eq a
+    => Tree a
+    -> Tree a
+    -> Bool
+  %runElab deriveEq `{{ eqTree }} `{{ Tree }}
 
-    Eq a => Eq (Tree a) where
-      (==) = derivedEq
+  Eq a => Eq (Tree a) where
+    (==) = eqTree
 
-  mutual
-    derivedDecEq : DecEq a
-      => (x : Tree a)
-      -> (y : Tree a)
-      -> Dec (x = y)
-    %runElab deriveDecEq `{{ Tree }}
+mutual
+  decEqTree : DecEq a
+    => (x : Tree a)
+    -> (y : Tree a)
+    -> Dec (x = y)
+  %runElab deriveDecEq `{{ decEqTree }} `{{ Tree }}
 
-    DecEq a => DecEq (Tree a) where
-      decEq = derivedDecEq
+  DecEq a => DecEq (Tree a) where
+    decEq = decEqTree
 
 main : IO ()
 main = putStrLn "Hi!"

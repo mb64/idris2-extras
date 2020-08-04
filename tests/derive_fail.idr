@@ -19,28 +19,27 @@ Uninhabited (Branch l x y = Leaf) where
 Uninhabited (Leaf = Branch l x r) where
   uninhabited Refl impossible
 
--- Namespace it so it doesn't conflict with other `derivedDecEq`s
-namespace BalancedTreeDerive
-  mutual
-    derivedEq : Eq a
-      => BalancedTree n a
-      -> BalancedTree n a
-      -> Bool
-    %runElab deriveEq `{{ BalancedTree }}
+-- This works fine
+mutual
+  eqBalancedTree : Eq a
+    => BalancedTree n a
+    -> BalancedTree n a
+    -> Bool
+  %runElab deriveEq `{{ eqBalancedTree }} `{{ BalancedTree }}
 
-    Eq a => Eq (BalancedTree n a) where
-      (==) = derivedEq
+  Eq a => Eq (BalancedTree n a) where
+    (==) = eqBalancedTree
 
-  -- This fails since the clause `decEq Leaf (Branch _ _ _)` fails to typecheck
-  mutual
-    derivedDecEq : DecEq a
-      => (x : BalancedTree n a)
-      -> (y : BalancedTree n a)
-      -> Dec (x = y)
-    %runElab deriveDecEq `{{ BalancedTree }}
+-- This fails since the clause `decEq Leaf (Branch _ _ _)` fails to typecheck
+mutual
+  decEqBalancedTree : DecEq a
+    => (x : BalancedTree n a)
+    -> (y : BalancedTree n a)
+    -> Dec (x = y)
+  %runElab deriveDecEq `{{ decEqBalancedTree }} {{ BalancedTree }}
 
-    DecEq a => DecEq (BalancedTree n a) where
-      decEq = derivedDecEq
+  DecEq a => DecEq (BalancedTree n a) where
+    decEq = decEqBalancedTree
 
 main : IO ()
 main = putStrLn "Hi!"
