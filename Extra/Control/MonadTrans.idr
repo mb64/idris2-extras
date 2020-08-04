@@ -4,7 +4,6 @@
 |||  - MonadError interface and ExceptT transformer
 |||  - MonadReader interface and ReaderT transformer
 |||  - MonadCont interface and ContT transformer
-|||  - MonadIO interface: like Prelude.HasIO but not linear
 |||
 ||| TODO: WriterT and MonadWriter, RWST transformer
 module Extra.Control.MonadTrans
@@ -13,22 +12,6 @@ import public Control.Monad.Trans
 import public Control.Monad.State
 
 -- Classes
-
-||| Like Prelude.HasIO, but it doesn't require a linear lifting, so it can be
-||| used with monad transformers more easily
-public export
-interface Monad m => MonadIO m where
-  liftIO : IO a -> m a
-
-export
-implementation MonadIO IO where
-  liftIO = id
-
-export
-implementation MonadIO m => MonadIO (StateT s m) where
-  liftIO x = ST $ \st => do
-    val <- liftIO x
-    pure (val, st)
 
 public export
 interface Monad m => MonadError e m | m where
@@ -63,6 +46,10 @@ interface Monad m => MonadReader r m | m where
 --   ask = id
 --   local f g = g . f
 --   reader = id
+
+-- FIXME: remove when #523 is merged
+implementation HasIO m => HasIO (StateT s m) where
+  liftIO io = ST $ \s => liftIO $ io_bind io $ \a => pure (a, s)
 
 public export
 interface Monad m => MonadCont m where
@@ -125,14 +112,14 @@ implementation Monad m => MonadError e (ExceptT e m) where
     runExceptT $ f e
 
 export
-implementation MonadIO m => MonadIO (ExceptT e m) where
-  liftIO = MkExceptT . map Right . liftIO
-
-export
 implementation MonadReader r m => MonadReader r (ExceptT e m) where
   ask = lift ask
   local f (MkExceptT x) = MkExceptT $ local f x
   reader = lift . reader
+
+export
+implementation HasIO m => HasIO (ExceptT e m) where
+  liftIO io = MkExceptT $ liftIO $ io_bind io (pure . Right)
 
 export
 implementation MonadCont m => MonadCont (ExceptT e m) where
@@ -181,8 +168,8 @@ implementation MonadError e m => MonadError e (ReaderT r m) where
   catchError (MkReaderT a) h = MkReaderT $ \r => catchError (a r) (flip runReaderT r . h)
 
 export
-implementation MonadIO m => MonadIO (ReaderT r m) where
-  liftIO = MkReaderT . const . liftIO
+implementation HasIO m => HasIO (ReaderT r m) where
+  liftIO io = MkReaderT $ \_ => liftIO io
 
 export
 implementation MonadCont m => MonadCont (ReaderT r m) where
@@ -231,7 +218,3 @@ export
 implementation MonadState s m => MonadState s (ContT r m) where
   get = lift get
   put = lift . put
-
-export
-implementation MonadIO m => MonadIO (ContT r m) where
-  liftIO = lift . liftIO
