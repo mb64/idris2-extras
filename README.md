@@ -15,6 +15,8 @@ This library fills some of those gaps.
 
  * `Extras.Prelude` has some basic things like `zip` for streams
  * `Extras.Control.MonadTrans` has `ReaderT` and `ExceptT`
+ * `Extras.Data.DepMap` has a version of `Data.SortedMap` where the values can
+   depend on the keys.
  * `Extras.Language.Derive` has utilities to derive `Eq` and `DecEq` interfaces.
    They're not super robust, but they work for most simple types.  See
    `tests/derive.idr` and `tests/derive_fail.idr` for what works and what
@@ -22,5 +24,5 @@ This library fills some of those gaps.
 
 ## TODO
 
- * Dependent map `DMap : (k : Type) -> (p : k -> Type) -> (Ord k, DecEq k) => Type`
- * Derive `Uninhabited (a = b)` for distinct constructors `a`, `b`
+ * Better `deriveDecEq` that doesn't rely on `Uninhabited (a = b)` for distinct
+   constructors `A`, `B`
