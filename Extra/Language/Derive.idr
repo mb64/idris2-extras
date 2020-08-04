@@ -1,3 +1,7 @@
+||| Derive Eq and DecEq
+|||
+||| You'll get cryptic errors if you try to use it without importing
+||| `Language.Reflection` and `Extra.Prelude`.
 module Extra.Language.Derive
 
 import Extra.Prelude
@@ -68,6 +72,7 @@ deriveEq funcName typeName = do
       clauses = [PatClause pos (IVar pos funcName) result]
   declare [IDef pos funcName clauses]
 
+
 -- Wow! what an opportunity to derive equality
 mutual
   eqName : Name -> Name -> Bool
@@ -76,6 +81,7 @@ mutual
   export
   Eq Name where
     (==) = eqName
+
 
 ||| Derive `DecEq` for a type.
 |||
@@ -122,21 +128,25 @@ deriveDecEq funcName typeName = do
         _ => let startingLhs = `(~(thisFunc) ~(lhsSoFar) ~(lhsSoFar))
                  lhs = foldl (IApp pos) startingLhs withBinds
              in PatClause pos lhs `(Yes Refl)
+      -- bindImplicits "x" Constr (typeof Constr) thing = forall xi. thing
+      bindImplicits : String -> Name -> TTImp -> TTImp -> TTImp
+      bindImplicits varName constr ty thing =
+        let args = the (List (Int, _)) $ zip [1..] $ argTys ty in
+        let implicitPi : (String,TTImp) -> TTImp -> TTImp
+            implicitPi (n,arg) ty = IPi pos M0 ImplicitArg (Just $ UN n) arg ty
+        in foldr implicitPi thing $ map (\(i,t) => (varName ++ show i, t)) args
       makeSameClause : Name -> Elab Clause
       makeSameClause constr = do
         [(name, ty)] <- getType constr
           | _ => fail $ "ambiguous name for constr " ++ show constr
         let boundA = fullyApply pos (IVar pos name) "a__" 1 ty
             boundB = fullyApply pos (IVar pos name) "b__" 1 ty
-            args = the (List (Int, _)) $ zip [1..] $ argTys ty
-        let implicitPi : (String,TTImp) -> TTImp -> TTImp
-            implicitPi (n,arg) ty = IPi pos M0 ImplicitArg (Just $ UN n) arg ty
-            makeIndTy : Int -> TTImp
+        let makeIndTy : Int -> TTImp
             makeIndTy i = let a = IVar pos $ UN $ "a__" ++ show i
                               b = IVar pos $ UN $ "b__" ++ show i
-                          in foldr implicitPi `(~(boundA) === ~(boundB) -> ~(a) === ~(b))
-                            $ map (\(i,t) => ("a__" ++ show i, t)) args ++
-                              map (\(i,t) => ("b__" ++ show i, t)) args
+                          in bindImplicits "a__" name ty
+                            $ bindImplicits "b__" name ty
+                            $ `(~(boundA) === ~(boundB) -> ~(a) === ~(b))
         pure $ makeClause 1 makeIndTy (IVar pos name) [] ty
       makeDiffClause : Name -> Name -> Elab Clause
       makeDiffClause c1 c2 = do
@@ -144,10 +154,23 @@ deriveDecEq funcName typeName = do
           | _ => fail $ "ambiguous name for constr " ++ show c1
         [(n2, ty2)] <- getType c2
           | _ => fail $ "ambiguous name for constr " ++ show c2
-        let pat1 = fullyBind pos (IVar pos n1) "x__" 1 ty1
-            pat2 = fullyBind pos (IVar pos n2) "y__" 1 ty2
-            lhs = `(~(thisFunc) ~(pat1) ~(pat2))
-        pure $ PatClause pos lhs `(No absurd)
+        -- let pat1 = fullyBind pos (IVar pos n1) "x__" 1 ty1
+        --     pat2 = fullyBind pos (IVar pos n2) "y__" 1 ty2
+        --     thing1 = fullyApply pos (IVar pos n1) "a__" 1 ty1
+        --     thing2 = fullyApply pos (IVar pos n2) "b__" 1 ty2
+        --     badTy = bindImplicits "a__" n1 ty1
+        --           $ bindImplicits "b__" n2 ty2
+        --           $ `(~(thing1) = ~(thing2) -> Void)
+        let thing1 : TTImp
+            thing1 = foldl (\t, _ => IApp pos (Implicit pos True) t) (IVar pos n1) $ argTys ty1
+            thing2 : TTImp
+            thing2 = foldl (\t, _ => IApp pos (Implicit pos True) t) (IVar pos n2) $ argTys ty2
+            lhs : TTImp
+            lhs = `(~(thisFunc) ~(thing1) ~(thing2))
+        pure $ PatClause pos lhs
+             $ ILocal pos `[ bad : ~(thing1) === ~(thing2) -> Void
+                             bad Refl impossible ]
+                          `(No bad)
   clauses <- sequence $ do
     a <- constrs
     b <- constrs
