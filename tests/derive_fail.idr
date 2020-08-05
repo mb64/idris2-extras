@@ -13,12 +13,6 @@ data BalancedTree : Nat -> Type -> Type where
     -> (1 r : BalancedTree n a)
     -> BalancedTree (S n) a
 
-Uninhabited (Branch l x y = Leaf) where
-  uninhabited Refl impossible
-
-Uninhabited (Leaf = Branch l x r) where
-  uninhabited Refl impossible
-
 -- This works fine
 mutual
   eqBalancedTree : Eq a
@@ -36,7 +30,7 @@ mutual
     => (x : BalancedTree n a)
     -> (y : BalancedTree n a)
     -> Dec (x = y)
-  %runElab deriveDecEq `{{ decEqBalancedTree }} {{ BalancedTree }}
+  %runElab deriveDecEq `{{ decEqBalancedTree }} `{{ BalancedTree }}
 
   DecEq a => DecEq (BalancedTree n a) where
     decEq = decEqBalancedTree

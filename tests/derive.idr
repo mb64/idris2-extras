@@ -8,12 +8,6 @@ import Decidable.Equality
 data Tree a = Branch (Tree a) a (Tree a)
             | Leaf
 
-Uninhabited (Branch l x y = Leaf) where
-  uninhabited Refl impossible
-
-Uninhabited (Leaf = Branch l x r) where
-  uninhabited Refl impossible
-
 mutual
   eqTree : Eq a
     => Tree a

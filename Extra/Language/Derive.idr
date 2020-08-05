@@ -154,23 +154,22 @@ deriveDecEq funcName typeName = do
           | _ => fail $ "ambiguous name for constr " ++ show c1
         [(n2, ty2)] <- getType c2
           | _ => fail $ "ambiguous name for constr " ++ show c2
-        -- let pat1 = fullyBind pos (IVar pos n1) "x__" 1 ty1
-        --     pat2 = fullyBind pos (IVar pos n2) "y__" 1 ty2
-        --     thing1 = fullyApply pos (IVar pos n1) "a__" 1 ty1
-        --     thing2 = fullyApply pos (IVar pos n2) "b__" 1 ty2
-        --     badTy = bindImplicits "a__" n1 ty1
-        --           $ bindImplicits "b__" n2 ty2
-        --           $ `(~(thing1) = ~(thing2) -> Void)
-        let thing1 : TTImp
-            thing1 = foldl (\t, _ => IApp pos (Implicit pos True) t) (IVar pos n1) $ argTys ty1
-            thing2 : TTImp
-            thing2 = foldl (\t, _ => IApp pos (Implicit pos True) t) (IVar pos n2) $ argTys ty2
+        let thing1 = fullyApply pos (IVar pos n1) "a__" 1 ty1
+            thing2 = fullyApply pos (IVar pos n2) "b__" 1 ty2
+            badTy = bindImplicits "a__" n1 ty1
+                  $ bindImplicits "b__" n2 ty2
+                  $ `(~(thing1) = ~(thing2) -> Void)
+        let pat1 : TTImp
+            pat1 = foldl (\t, _ => IApp pos t (Implicit pos True)) (IVar pos n1) $ argTys ty1
+            pat2 : TTImp
+            pat2 = foldl (\t, _ => IApp pos t (Implicit pos True)) (IVar pos n2) $ argTys ty2
             lhs : TTImp
-            lhs = `(~(thisFunc) ~(thing1) ~(thing2))
+            lhs = `(~(thisFunc) ~(pat1) ~(pat2))
+            bad : List Decl
+            bad = [IClaim pos MW Private [] $ MkTy pos (UN "bad") badTy]
+                ++ `[ bad Refl impossible ]
         pure $ PatClause pos lhs
-             $ ILocal pos `[ bad : ~(thing1) === ~(thing2) -> Void
-                             bad Refl impossible ]
-                          `(No bad)
+             $ ILocal pos bad `(No bad)
   clauses <- sequence $ do
     a <- constrs
     b <- constrs
