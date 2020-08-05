@@ -32,6 +32,20 @@ fullyApply pos f argName i (IPi _ _ _ _ _ retTy)
   = fullyApply pos f argName i retTy
 fullyApply pos f argName i _ = f
 
+lookupConstr : Name -> Elab (Name, TTImp)
+lookupConstr constr = do
+  [(n, ty)] <- getType constr
+    | [] => fail $ "constr " ++ show constr ++ " does not exist? hmmm"
+    | _ => fail $ "ambiguous name for constr " ++ show constr
+  pure (n, ty)
+
+lookupType : Name -> Elab (Name, TTImp)
+lookupType typeName = do
+  [(n, ty)] <- getType typeName
+    | [] => fail $ "name " ++ show typeName ++ " not in scope"
+    | _ => fail $ "ambiguous name " ++ show typeName
+  pure (n, ty)
+
 ||| Derive `Eq` for a type.
 |||
 ||| Use:
@@ -45,8 +59,7 @@ export
 deriveEq : Name -> Name -> Elab ()
 deriveEq funcName typeName = do
   let pos = MkFC ("deriveEq for " ++ show typeName) (0,0) (0,0)
-  [(n, _)] <- getType typeName
-      | _ => fail "Bad name"
+  (n, _) <- lookupType typeName
   constrs <- getCons n
   let and : TTImp -> TTImp -> TTImp
       and x y = `(~(x) && ~(y))
@@ -54,8 +67,7 @@ deriveEq funcName typeName = do
       compareEq x y = `(~(IVar pos $ UN x) == ~(IVar pos $ UN y))
       makeClause : Name -> Elab Clause
       makeClause constr = do
-        [(_, ty)] <- getType constr
-          | _ => fail $ "ambiguous name for constr " ++ show constr
+        (_, ty) <- lookupConstr constr
         let nArgs = countArgs ty
         let xs = map (\i => "x_" ++ show i) $ take nArgs [1..]
         let ys = map (\i => "y_" ++ show i) $ take nArgs [1..]
@@ -97,8 +109,7 @@ deriveDecEq : Name -> Name -> Elab ()
 deriveDecEq funcName typeName = do
   let pos = MkFC ("deriveDecEq for " ++ show typeName) (0,0) (0,0)
       thisFunc = IVar pos funcName
-  [(n, _)] <- getType typeName
-      | _ => fail "Bad name"
+  (n, _) <- lookupType typeName
   constrs <- getCons n
   let makeClause : Int -> (Int -> TTImp) -> TTImp -> List TTImp -> TTImp -> Clause
       makeClause i mkIndTy lhsSoFar withBinds ty = case ty of
@@ -137,8 +148,7 @@ deriveDecEq funcName typeName = do
         in foldr implicitPi thing $ map (\(i,t) => (varName ++ show i, t)) args
       makeSameClause : Name -> Elab Clause
       makeSameClause constr = do
-        [(name, ty)] <- getType constr
-          | _ => fail $ "ambiguous name for constr " ++ show constr
+        (name, ty) <- lookupConstr constr
         let boundA = fullyApply pos (IVar pos name) "a__" 1 ty
             boundB = fullyApply pos (IVar pos name) "b__" 1 ty
         let makeIndTy : Int -> TTImp
@@ -150,10 +160,8 @@ deriveDecEq funcName typeName = do
         pure $ makeClause 1 makeIndTy (IVar pos name) [] ty
       makeDiffClause : Name -> Name -> Elab Clause
       makeDiffClause c1 c2 = do
-        [(n1, ty1)] <- getType c1
-          | _ => fail $ "ambiguous name for constr " ++ show c1
-        [(n2, ty2)] <- getType c2
-          | _ => fail $ "ambiguous name for constr " ++ show c2
+        (n1, ty1) <- lookupConstr c1
+        (n2, ty2) <- lookupConstr c2
         let thing1 = fullyApply pos (IVar pos n1) "a__" 1 ty1
             thing2 = fullyApply pos (IVar pos n2) "b__" 1 ty2
             badTy = bindImplicits "a__" n1 ty1
