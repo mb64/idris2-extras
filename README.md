@@ -24,5 +24,4 @@ This library fills some of those gaps.
 
 ## TODO
 
- * Better `deriveDecEq` that doesn't rely on `Uninhabited (a = b)` for distinct
-   constructors `A`, `B`
+ * Maybe a dependent hashmap? Or even a non-dependent hashmap would be nice tbh
