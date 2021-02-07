@@ -64,7 +64,7 @@ deriveEq funcName typeName = do
   let and : TTImp -> TTImp -> TTImp
       and x y = `(~(x) && ~(y))
       compareEq : String -> String -> TTImp
-      compareEq x y = `(~(IVar pos $ UN x) == ~(IVar pos $ UN y))
+      compareEq x y = `((~(IVar pos $ UN x)) == (~(IVar pos $ UN y)))
       makeClause : Name -> Elab Clause
       makeClause constr = do
         (_, ty) <- lookupConstr constr
@@ -86,6 +86,13 @@ deriveEq funcName typeName = do
 
 
 -- Wow! what an opportunity to derive equality
+eqNamespace : Namespace -> Namespace -> Bool
+%runElab deriveEq `{{ eqNamespace }} `{{ Namespace }}
+
+export
+Eq Namespace where
+  (==) = eqNamespace
+
 mutual
   eqName : Name -> Name -> Bool
   %runElab deriveEq `{{ eqName }} `{{ Name }}
